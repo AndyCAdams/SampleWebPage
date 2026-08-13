@@ -75,7 +75,15 @@
   .hero{position:relative;height:100vh;min-height:640px;display:flex;align-items:flex-end;overflow:hidden;}
   .hero-bg{
     position:absolute;inset:0;background-size:cover;background-position:center 20%;
-    filter:saturate(0.9) brightness(0.78);transform:scale(1.04);
+    filter:saturate(0.9) brightness(0.78);
+  }
+  /* The source photo is a tall portrait shot (storefront sign), so wide/short
+     desktop viewports cover-crop far more aggressively than tall phone ones.
+     This keeps the sign centered in frame instead of drifting toward the
+     entrance doors at the bottom of the photo. (No extra scale/zoom here —
+     that was compounding the crop unpredictably against the position shift.) */
+  @media (orientation:landscape){
+    .hero-bg{background-position:center 32%;}
   }
   .hero::after{
     content:"";position:absolute;inset:0;
@@ -210,6 +218,11 @@
   .visit-col a:hover{color:var(--amber);}
   .visit-col button.link-btn{
     font-family:'Work Sans',sans-serif;font-size:0.92rem;letter-spacing:0;text-transform:none;
+  }
+  .hours-live-note{
+    margin-top:0.7rem !important;font-family:'Space Mono',monospace !important;
+    font-size:0.62rem !important;letter-spacing:0.06em;color:var(--amber-dim) !important;
+    text-transform:uppercase;line-height:1.5 !important;
   }
   .visit-note{
     grid-column:1/-1;margin-top:0.6rem;font-family:'Space Mono',monospace;font-size:0.68rem;
@@ -372,7 +385,8 @@
   </div>
   <div class="visit-col">
     <div class="eyebrow">Hours</div>
-    <p>Mon – Tue: Closed<br>Wed – Thurs: 5pm – 1am<br>Fri – Sun: 5pm – 1:30am</p>
+    <p id="hoursText">Mon – Tue: Closed<br>Wed – Thurs: 5pm – 1am<br>Fri – Sun: 5pm – 1:30am</p>
+    <p id="hoursLiveNote" class="hours-live-note"></p>
   </div>
   <div class="visit-col">
     <div class="eyebrow">Contact</div>
@@ -462,6 +476,48 @@
     cell.appendChild(img);
     igGrid.appendChild(cell);
   });
+
+  // ---------- LIVE HOURS FROM GOOGLE BUSINESS PROFILE ----------
+  // Fill these in once a Google Cloud project + Places API key exist for the
+  // business, and the hours below will pull live from whatever's set on their
+  // Google Business Profile — no code changes needed after that. Left blank,
+  // the static hours already in the HTML are shown as-is (see chat for setup).
+  const GOOGLE_CONFIG = {
+    apiKey: '',      // e.g. 'AIzaSy...' — restrict this key to the site's domain
+    placeId: ''       // the business's Google Place ID (one-time lookup)
+  };
+
+  function fetchLiveHours(){
+    if(!GOOGLE_CONFIG.apiKey || !GOOGLE_CONFIG.placeId) return; // not configured — keep static hours
+
+    const noteEl = document.getElementById('hoursLiveNote');
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_CONFIG.apiKey}&libraries=places&callback=__kageInitPlaces`;
+    script.async = true;
+
+    window.__kageInitPlaces = () => {
+      try{
+        const service = new google.maps.places.PlacesService(document.createElement('div'));
+        service.getDetails(
+          { placeId: GOOGLE_CONFIG.placeId, fields: ['opening_hours'] },
+          (place, status) => {
+            if(status === google.maps.places.PlacesServiceStatus.OK && place.opening_hours && place.opening_hours.weekday_text){
+              const hoursEl = document.getElementById('hoursText');
+              hoursEl.innerHTML = place.opening_hours.weekday_text.join('<br>');
+              if(noteEl) noteEl.textContent = 'Live from Google';
+            }
+            // On any failure, the static hours already in the markup stay put.
+          }
+        );
+      }catch(err){
+        // Fails silently — static hours remain visible.
+      }
+    };
+
+    document.head.appendChild(script);
+  }
+
+  fetchLiveHours();
 </script>
 </body>
 </html>
